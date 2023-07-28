@@ -24,10 +24,10 @@ pub const Cpmk = struct {
 
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
-        var allocator = arena.allocator();
+        const allocator = arena.allocator();
 
-        try self.create_directories(cwd, &allocator);
-        try self.create_files(cwd, &allocator);
+        try self.create_directories(cwd, allocator);
+        try self.create_files(cwd, allocator);
 
         try stdout.print("Project {s} created successfully!\n", .{self.project_name.*});
     }
@@ -36,19 +36,19 @@ pub const Cpmk = struct {
         return std.mem.eql(u8, self.language.*, "c") or std.mem.eql(u8, self.language.*, "cpp");
     }
 
-    fn create_directories(self: Cpmk, cwd: std.fs.Dir, allocator: *std.mem.Allocator) !void {
+    fn create_directories(self: Cpmk, cwd: std.fs.Dir, allocator: std.mem.Allocator) !void {
         try cwd.makeDir(self.project_name.*);
-        const src_dir = try std.fmt.allocPrint(allocator.*, "{s}/src", .{self.project_name.*});
+        const src_dir = try std.fmt.allocPrint(allocator, "{s}/src", .{self.project_name.*});
         try cwd.makeDir(src_dir);
     }
 
-    fn create_files(self: Cpmk, cwd: std.fs.Dir, allocator: *std.mem.Allocator) !void {
+    fn create_files(self: Cpmk, cwd: std.fs.Dir, allocator: std.mem.Allocator) !void {
         var src_file: []u8 = undefined;
         var src_content: []u8 = undefined;
         var cmake_c: []u8 = "";
         if (std.mem.eql(u8, self.language.*, "c")) {
-            src_file = try std.fmt.allocPrint(allocator.*, "{s}/src/main.c", .{self.project_name.*});
-            src_content = try std.fmt.allocPrint(allocator.*,
+            src_file = try std.fmt.allocPrint(allocator, "{s}/src/main.c", .{self.project_name.*});
+            src_content = try std.fmt.allocPrint(allocator,
                 \\#include <stdio.h>
                 \\
                 \\int main(void) {{
@@ -57,7 +57,7 @@ pub const Cpmk = struct {
                 \\  return 0;
                 \\}}
             , .{});
-            cmake_c = try std.fmt.allocPrint(allocator.*,
+            cmake_c = try std.fmt.allocPrint(allocator,
                 \\set(CMAKE_C_STANDARD 17)
                 \\set(CMAKE_C_STANDARD_REQUIRED True)
                 \\set(CMAKE_C_FLAGS "-Wall -Wextra -Werror")
@@ -65,8 +65,8 @@ pub const Cpmk = struct {
                 \\
             , .{});
         } else {
-            src_file = try std.fmt.allocPrint(allocator.*, "{s}/src/main.cpp", .{self.project_name.*});
-            src_content = try std.fmt.allocPrint(allocator.*,
+            src_file = try std.fmt.allocPrint(allocator, "{s}/src/main.cpp", .{self.project_name.*});
+            src_content = try std.fmt.allocPrint(allocator,
                 \\#include <iostream>
                 \\
                 \\int main() {{
@@ -79,8 +79,8 @@ pub const Cpmk = struct {
 
         try cwd.writeFile(src_file, src_content);
 
-        var cmake_file = try std.fmt.allocPrint(allocator.*, "{s}/CMakeLists.txt", .{self.project_name.*});
-        var cmake_content = try std.fmt.allocPrint(allocator.*,
+        var cmake_file = try std.fmt.allocPrint(allocator, "{s}/CMakeLists.txt", .{self.project_name.*});
+        var cmake_content = try std.fmt.allocPrint(allocator,
             \\cmake_minimum_required(VERSION 3.10.0)
             \\
             \\project({s} VERSION 0.1.0)
@@ -95,8 +95,8 @@ pub const Cpmk = struct {
         , .{ self.project_name.*, cmake_c });
         try cwd.writeFile(cmake_file, cmake_content);
 
-        var cmake_src_file = try std.fmt.allocPrint(allocator.*, "{s}/src/CMakeLists.txt", .{self.project_name.*});
-        var cmake_src_content = try std.fmt.allocPrint(allocator.*,
+        var cmake_src_file = try std.fmt.allocPrint(allocator, "{s}/src/CMakeLists.txt", .{self.project_name.*});
+        var cmake_src_content = try std.fmt.allocPrint(allocator,
             \\cmake_minimum_required(VERSION 3.10.0)
             \\
             \\add_executable(

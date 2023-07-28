@@ -16,5 +16,5 @@ pub fn main() !void {
     };
 
     var proj = cpmk.Cpmk.new(&lang, &proj_name);
-    try cpmk.setup_project(&proj);
+    try proj.setup_project();
 }

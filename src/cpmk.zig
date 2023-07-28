@@ -11,96 +11,100 @@ pub const Cpmk = struct {
             .project_name = project_name,
         };
     }
+
+    pub fn setup_project(self: Cpmk) !void {
+        if (!self.is_valid()) {
+            try stdout.print("Invalid language: {s}\n", .{self.language.*});
+            try stdout.print("Valid languages: c, cpp\n", .{});
+
+            return;
+        }
+
+        var cwd = std.fs.cwd();
+
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        var allocator = arena.allocator();
+
+        try self.create_directories(cwd, &allocator);
+        try self.create_files(cwd, &allocator);
+
+        try stdout.print("Project {s} created successfully!\n", .{self.project_name.*});
+    }
+
+    fn is_valid(self: Cpmk) bool {
+        return std.mem.eql(u8, self.language.*, "c") or std.mem.eql(u8, self.language.*, "cpp");
+    }
+
+    fn create_directories(self: Cpmk, cwd: std.fs.Dir, allocator: *std.mem.Allocator) !void {
+        try cwd.makeDir(self.project_name.*);
+        const src_dir = try std.fmt.allocPrint(allocator.*, "{s}/src", .{self.project_name.*});
+        try cwd.makeDir(src_dir);
+    }
+
+    fn create_files(self: Cpmk, cwd: std.fs.Dir, allocator: *std.mem.Allocator) !void {
+        var src_file: []u8 = undefined;
+        var src_content: []u8 = undefined;
+        var cmake_c: []u8 = "";
+        if (std.mem.eql(u8, self.language.*, "c")) {
+            src_file = try std.fmt.allocPrint(allocator.*, "{s}/src/main.c", .{self.project_name.*});
+            src_content = try std.fmt.allocPrint(allocator.*,
+                \\#include <stdio.h>
+                \\
+                \\int main(void) {{
+                \\  printf("Hello, world!\n");
+                \\
+                \\  return 0;
+                \\}}
+            , .{});
+            cmake_c = try std.fmt.allocPrint(allocator.*,
+                \\set(CMAKE_C_STANDARD 17)
+                \\set(CMAKE_C_STANDARD_REQUIRED True)
+                \\set(CMAKE_C_FLAGS "-Wall -Wextra -Werror")
+                \\
+                \\
+            , .{});
+        } else {
+            src_file = try std.fmt.allocPrint(allocator.*, "{s}/src/main.cpp", .{self.project_name.*});
+            src_content = try std.fmt.allocPrint(allocator.*,
+                \\#include <iostream>
+                \\
+                \\int main() {{
+                \\  std::cout << "Hello, world!\n";
+                \\
+                \\  return 0;
+                \\}}
+            , .{});
+        }
+
+        try cwd.writeFile(src_file, src_content);
+
+        var cmake_file = try std.fmt.allocPrint(allocator.*, "{s}/CMakeLists.txt", .{self.project_name.*});
+        var cmake_content = try std.fmt.allocPrint(allocator.*,
+            \\cmake_minimum_required(VERSION 3.10.0)
+            \\
+            \\project({s} VERSION 0.1.0)
+            \\
+            \\{s}set(CMAKE_CXX_STANDARD 17)
+            \\set(CMAKE_CXX_STANDARD_REQUIRED True)
+            \\set(CMAKE_CXX_FLAGS "-Wall -Wextra -Werror")
+            \\
+            \\set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${{CMAKE_BINARY_DIR}}")
+            \\
+            \\add_subdirectory(src)
+        , .{ self.project_name.*, cmake_c });
+        try cwd.writeFile(cmake_file, cmake_content);
+
+        var cmake_src_file = try std.fmt.allocPrint(allocator.*, "{s}/src/CMakeLists.txt", .{self.project_name.*});
+        var cmake_src_content = try std.fmt.allocPrint(allocator.*,
+            \\cmake_minimum_required(VERSION 3.10.0)
+            \\
+            \\add_executable(
+            \\  {s}
+            \\  main.{s}
+            \\)
+        , .{ self.project_name.*, self.language.* });
+
+        try cwd.writeFile(cmake_src_file, cmake_src_content);
+    }
 };
-
-pub fn setup_project(cpmk: *Cpmk) !void {
-    if (!is_valid(cpmk.language)) {
-        try stdout.print("Invalid language: {s}\n", .{cpmk.language.*});
-        try stdout.print("Valid languages: c, cpp\n", .{});
-
-        return;
-    }
-
-    var cwd = std.fs.cwd();
-
-    try create_directories(cwd, cpmk.project_name);
-    try create_files(cwd, cpmk);
-
-    try stdout.print("Project {s} created successfully!\n", .{cpmk.project_name.*});
-}
-
-fn is_valid(language: *[]const u8) bool {
-    return std.mem.eql(u8, language.*, "c") or std.mem.eql(u8, language.*, "cpp");
-}
-
-fn create_directories(cwd: std.fs.Dir, project_name: *[]const u8) !void {
-    try cwd.makeDir(project_name.*);
-    const src_dir = try std.fmt.allocPrint(std.heap.page_allocator, "{s}/src", .{project_name.*});
-    try cwd.makeDir(src_dir);
-}
-
-fn create_files(cwd: std.fs.Dir, cpmk: *Cpmk) !void {
-    var src_file: []u8 = undefined;
-    var src_content: []u8 = undefined;
-    var cmake_c: []u8 = "";
-    if (std.mem.eql(u8, cpmk.language.*, "c")) {
-        src_file = try std.fmt.allocPrint(std.heap.page_allocator, "{s}/src/main.c", .{cpmk.project_name.*});
-        src_content = try std.fmt.allocPrint(std.heap.page_allocator,
-            \\#include <stdio.h>
-            \\
-            \\int main(void) {{
-            \\  printf("Hello, world!\n");
-            \\
-            \\  return 0;
-            \\}}
-        , .{});
-        cmake_c = try std.fmt.allocPrint(std.heap.page_allocator,
-            \\set(CMAKE_C_STANDARD 17)
-            \\set(CMAKE_C_STANDARD_REQUIRED True)
-            \\set(CMAKE_C_FLAGS "-Wall -Wextra -Werror")
-            \\
-            \\
-        , .{});
-    } else {
-        src_file = try std.fmt.allocPrint(std.heap.page_allocator, "{s}/src/main.cpp", .{cpmk.project_name.*});
-        src_content = try std.fmt.allocPrint(std.heap.page_allocator,
-            \\#include <iostream>
-            \\
-            \\int main() {{
-            \\  std::cout << "Hello, world!\n";
-            \\
-            \\  return 0;
-            \\}}
-        , .{});
-    }
-
-    try cwd.writeFile(src_file, src_content);
-
-    var cmake_file = try std.fmt.allocPrint(std.heap.page_allocator, "{s}/CMakeLists.txt", .{cpmk.project_name.*});
-    var cmake_content = try std.fmt.allocPrint(std.heap.page_allocator,
-        \\cmake_minimum_required(VERSION 3.10.0)
-        \\
-        \\project({s} VERSION 0.1.0)
-        \\
-        \\{s}set(CMAKE_CXX_STANDARD 17)
-        \\set(CMAKE_CXX_STANDARD_REQUIRED True)
-        \\set(CMAKE_CXX_FLAGS "-Wall -Wextra -Werror")
-        \\
-        \\set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${{CMAKE_BINARY_DIR}}")
-        \\
-        \\add_subdirectory(src)
-    , .{ cpmk.project_name.*, cmake_c });
-    try cwd.writeFile(cmake_file, cmake_content);
-
-    var cmake_src_file = try std.fmt.allocPrint(std.heap.page_allocator, "{s}/src/CMakeLists.txt", .{cpmk.project_name.*});
-    var cmake_src_content = try std.fmt.allocPrint(std.heap.page_allocator,
-        \\cmake_minimum_required(VERSION 3.10.0)
-        \\
-        \\add_executable(
-        \\  {s}
-        \\  main.{s}
-        \\)
-    , .{ cpmk.project_name.*, cpmk.language.* });
-
-    try cwd.writeFile(cmake_src_file, cmake_src_content);
-}
